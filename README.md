@@ -16,42 +16,39 @@ ETH 스왑마다 입력 금액의 5%를 상금 풀에 넣고 0.001 ETH당 티켓
 ### 컨트랙트 구성
 
 ```mermaid
-flowchart LR
-    subgraph User["사용자"]
-        U[지갑 / 프론트]
-    end
+flowchart TB
+    U[사용자 지갑 / 프론트]
 
-    subgraph Uniswap["Uniswap V4 (Sepolia 기배포)"]
-        R[V4SwapRouter<br/>hookmate]
+    subgraph Uniswap["Uniswap V4 · Sepolia 기배포"]
+        direction LR
+        R[V4SwapRouter]
         PM[PoolManager<br/>모든 풀의 장부]
-        POS[PositionManager<br/>유동성]
+        POS[PositionManager]
     end
 
     subgraph Ours["우리가 배포한 것"]
-        H["LotteryHook<br/>beforeSwap + returnDelta<br/>회차 · 티켓 · pot/reserved"]
+        direction LR
+        H[LotteryHook<br/>beforeSwap · 회차 · 티켓 · pot/reserved]
         T[LTT 테스트 토큰]
     end
 
     subgraph Chainlink["Chainlink VRF v2.5"]
+        direction LR
         C[VRF Coordinator]
-        S[(구독 …7278<br/>LINK / ETH)]
+        S[(구독 …7278)]
     end
 
-    U -- "swapExactTokensForTokens(hookData=me) + ETH" --> R
-    R -- swap --> PM
-    PM -- "beforeSwap(key, params, hookData)" --> H
-    H -- "take(ETH, fee)" --> PM
-    POS -. "initializePool / mint (ETH/LTT, hooks=H)" .-> PM
-    H -- requestRandomWords --> C
-    C -- rawFulfillRandomWords --> H
+    U -- "1. 스왑 + ETH (hookData=내 주소)" --> R
+    R -- "2. swap" --> PM
+    PM -- "3. beforeSwap" --> H
+    H -- "4. take(ETH 5%)" --> PM
+    POS -. "풀 생성 · 유동성 (hooks=LotteryHook)" .-> PM
+    U -- "5. requestDraw" --> H
+    H -- "6. requestRandomWords" --> C
+    C -- "7. rawFulfillRandomWords" --> H
     C --- S
-    U -- "requestDraw / claim" --> H
-    H -- "prize ETH" --> U
-
-    style H fill:#0e2a2a,stroke:#4ff0e6,color:#e8ecf8
-    style T fill:#0e2a2a,stroke:#4ff0e6,color:#e8ecf8
-    style PM fill:#1a1533,stroke:#a56bff,color:#e8ecf8
-    style C fill:#2a1a0e,stroke:#ff9a3c,color:#e8ecf8
+    U -- "8. claim" --> H
+    H -- "9. 상금 ETH" --> U
 ```
 
 ### 한 회차의 흐름
@@ -119,8 +116,6 @@ flowchart LR
     RS -- "claim" --> W[승자]
     X[회계 밖 잔액<br/>balance − pot − reserved] -- "sweepExcess (owner)" --> O[owner]
 
-    style P fill:#0e2a2a,stroke:#4ff0e6,color:#e8ecf8
-    style RS fill:#2a220e,stroke:#ffd166,color:#e8ecf8
 ```
 
 ## 폴더 구조
