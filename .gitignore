@@ -1,0 +1,16 @@
+# secrets
+.env
+web/.env
+
+# build output
+out/
+cache/
+broadcast/
+web/dist/
+node_modules/
+
+# dependency clone (README 설치 절차로 재현)
+v4-template/
+
+.DS_Store
+*.tsbuildinfo
