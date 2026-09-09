@@ -11,6 +11,118 @@ ETH 스왑마다 입력 금액의 5%를 상금 풀에 넣고 0.001 ETH당 티켓
 - `test/LotteryHook.t.sol` — ETH/토큰 풀 기준 36개
 - `script/DeploySepolia.s.sol` — 토큰·훅·풀·상금·VRF consumer 원샷 배포
 
+## 구조도
+
+### 컨트랙트 구성
+
+```mermaid
+flowchart LR
+    subgraph User["사용자"]
+        U[지갑 / 프론트]
+    end
+
+    subgraph Uniswap["Uniswap V4 (Sepolia 기배포)"]
+        R[V4SwapRouter<br/>hookmate]
+        PM[PoolManager<br/>모든 풀의 장부]
+        POS[PositionManager<br/>유동성]
+    end
+
+    subgraph Ours["우리가 배포한 것"]
+        H["LotteryHook<br/>beforeSwap + returnDelta<br/>회차 · 티켓 · pot/reserved"]
+        T[LTT 테스트 토큰]
+    end
+
+    subgraph Chainlink["Chainlink VRF v2.5"]
+        C[VRF Coordinator]
+        S[(구독 …7278<br/>LINK / ETH)]
+    end
+
+    U -- "swapExactTokensForTokens(hookData=me) + ETH" --> R
+    R -- swap --> PM
+    PM -- "beforeSwap(key, params, hookData)" --> H
+    H -- "take(ETH, fee)" --> PM
+    POS -. "initializePool / mint (ETH/LTT, hooks=H)" .-> PM
+    H -- requestRandomWords --> C
+    C -- rawFulfillRandomWords --> H
+    C --- S
+    U -- "requestDraw / claim" --> H
+    H -- "prize ETH" --> U
+
+    style H fill:#0e2a2a,stroke:#4ff0e6,color:#e8ecf8
+    style T fill:#0e2a2a,stroke:#4ff0e6,color:#e8ecf8
+    style PM fill:#1a1533,stroke:#a56bff,color:#e8ecf8
+    style C fill:#2a1a0e,stroke:#ff9a3c,color:#e8ecf8
+```
+
+### 한 회차의 흐름
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as 사용자
+    participant R as V4SwapRouter
+    participant PM as PoolManager
+    participant H as LotteryHook
+    participant C as VRF Coordinator
+    actor W as 승자
+
+    A->>R: swapExactTokensForTokens(0.01 ETH, hookData=A)
+    R->>PM: swap(key, params)
+    PM->>H: beforeSwap
+    H->>PM: take(ETH, 5% = 0.0005)
+    Note over H: pot += 0.0005<br/>tickets(A) += 10
+    H-->>PM: BeforeSwapDelta(fee)
+    PM-->>R: 0.0095 ETH 만 교환
+    R-->>A: LTT 토큰
+
+    Note over H: … 회차 종료(endTime) …
+
+    A->>H: requestDraw()
+    Note over H: prize = pot → reserved<br/>phase = Drawing
+    H->>C: requestRandomWords(keyHash, subId)
+    C-->>H: rawFulfillRandomWords(requestId, word)
+    Note over H: winner = ticketOwner[word % ticketCount]<br/>phase = Resolved, 다음 회차 Open
+
+    W->>H: claim(epochId)
+    H-->>W: prize ETH
+    Note over H: reserved -= prize
+```
+
+### 회차 상태 머신
+
+```mermaid
+stateDiagram-v2
+    [*] --> Open : _openEpoch()
+
+    Open --> Open : swap → 수수료 적립 + 티켓
+    Open --> Drawing : requestDraw()<br/>(종료 후 누구나 / owner 언제나)<br/>pot → reserved
+    Open --> Resolved : skipEpoch()<br/>(티켓 0 또는 pot 0, pot 이월)
+
+    Drawing --> Drawing : retryDraw()<br/>(vrfTimeout 경과, 새 requestId)
+    Drawing --> Resolved : fulfillRandomWords()<br/>승자 확정 + 다음 회차 Open
+
+    Resolved --> [*] : claim()<br/>reserved -= prize
+
+    note right of Drawing
+        오래된 requestId 콜백은 무시
+        스왑은 수수료·티켓 없이 통과
+    end note
+```
+
+### 상금 회계
+
+```mermaid
+flowchart LR
+    F[스왑 수수료 5%] --> P[(pot<br/>미배정 상금)]
+    D[외부 예치 receive] --> P
+    P -- "requestDraw: 전액 잠금" --> RS[(reserved<br/>확정·미수령)]
+    RS -- "claim" --> W[승자]
+    X[회계 밖 잔액<br/>balance − pot − reserved] -- "sweepExcess (owner)" --> O[owner]
+
+    style P fill:#0e2a2a,stroke:#4ff0e6,color:#e8ecf8
+    style RS fill:#2a220e,stroke:#ffd166,color:#e8ecf8
+```
+
 ## 폴더 구조
 
 ```
