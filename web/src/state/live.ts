@@ -14,7 +14,8 @@ import { encodeAbiParameters, parseAbiItem, parseEther, type Address } from 'vie
 import { sendTransaction } from 'wagmi/actions'
 import lotteryAbi from '../config/abi/LotteryHook.json'
 import { swapRouterAbi } from '../config/abi/swapRouter'
-import { DEPLOY_BLOCK, HOOK_ADDRESS, SWAP_ROUTER, poolKey } from '../config/addresses'
+import { mockVrfAbi } from '../config/abi/mockVrf'
+import { DEPLOY_BLOCK, HOOK_ADDRESS, SWAP_ROUTER, VRF_COORDINATOR, poolKey } from '../config/addresses'
 import { CHAIN, wagmiConfig } from '../config/wagmi'
 import { Phase, type LotteryModel, type LotteryState, type TicketRecord, type WinnerRecord } from '../lib/types'
 import { nowSec } from '../lib/format'
@@ -97,6 +98,16 @@ export function useLiveLottery(): LotteryModel {
     query: { refetchInterval: 4000 },
   })
   const state = useMemo(() => (stateQ.data ? toState(stateQ.data as RawState) : null), [stateQ.data])
+
+  const coordQ = useReadContract({
+    abi,
+    address: HOOK,
+    functionName: 's_vrfCoordinator',
+    chainId: CHAIN.id,
+    query: { refetchInterval: 15000 },
+  })
+  const coordinator = coordQ.data as Address | undefined
+  const mockVrf = Boolean(coordinator && VRF_COORDINATOR && coordinator.toLowerCase() !== VRF_COORDINATOR.toLowerCase())
 
   const myQ = useReadContract({
     abi,
@@ -210,6 +221,20 @@ export function useLiveLottery(): LotteryModel {
       run('상금 수령 중…', () =>
         writeContractAsync({ abi, address: HOOK, functionName: 'claim', args: [BigInt(epochId)], chainId: CHAIN.id }),
       ),
+    mockFulfill: () =>
+      run('난수 주입 중… (mock)', () => {
+        if (!state || !coordinator) throw new Error('상태 없음')
+        const buf = new Uint8Array(32)
+        crypto.getRandomValues(buf)
+        const word = BigInt('0x' + Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join(''))
+        return writeContractAsync({
+          abi: mockVrfAbi,
+          address: coordinator,
+          functionName: 'fulfill',
+          args: [state.epoch.vrfRequestId, word],
+          chainId: CHAIN.id,
+        })
+      }),
     deposit: (amountEth: string) =>
       run('상금 예치 중…', async () => {
         if (!client || !address) throw new Error('지갑을 연결하세요')
@@ -228,6 +253,7 @@ export function useLiveLottery(): LotteryModel {
     busy,
     error: error ?? (stateQ.error ? `상태 조회 실패: ${stateQ.error.message}` : null),
     lastTx,
+    mockVrf,
     connect: () => connect({ connector: connectors[0] }),
     disconnect: () => disconnect(),
     actions,

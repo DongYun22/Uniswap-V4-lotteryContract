@@ -2,7 +2,7 @@ import { Phase, type LotteryState } from '../lib/types'
 import { fmtDuration, fmtEth, phaseColor, phaseLabel, short } from '../lib/format'
 import { VRF_SUB_URL } from '../config/addresses'
 
-export default function EpochPanel({ state, myTickets, now }: { state: LotteryState; myTickets: number; now: number }) {
+export default function EpochPanel({ state, myTickets, now, mockVrf }: { state: LotteryState; myTickets: number; now: number; mockVrf?: boolean }) {
   const e = state.epoch
   const left = e.endTime - now
   const ended = left <= 0
@@ -23,7 +23,13 @@ export default function EpochPanel({ state, myTickets, now }: { state: LotterySt
       <div className="muted small">
         {e.phase === Phase.Open && !ended && '회차 종료까지'}
         {e.phase === Phase.Open && ended && '누구나 requestDraw() 호출 가능'}
-        {e.phase === Phase.Drawing && (
+        {e.phase === Phase.Drawing && mockVrf && (
+          <>
+            mock 코디네이터 · 오른쪽 "난수 주입" 버튼으로 승자를 뽑습니다 · 요청 후{' '}
+            <b className="mono">{fmtDuration(Math.max(0, now - e.drawRequestedAt))}</b> 경과
+          </>
+        )}
+        {e.phase === Phase.Drawing && !mockVrf && (
           <>
             Chainlink VRF 콜백 대기 · 요청 후 <b className="mono">{fmtDuration(Math.max(0, now - e.drawRequestedAt))}</b> 경과
             <br />

@@ -47,7 +47,7 @@ export default function Live({ model }: { model: LotteryModel }) {
       </div>
       <div className="overlay">
         <div className="col left">
-          {s ? <EpochPanel state={s} myTickets={model.myTickets} now={now} /> : <section className="panel">상태 불러오는 중…</section>}
+          {s ? <EpochPanel state={s} myTickets={model.myTickets} now={now} mockVrf={model.mockVrf} /> : <section className="panel">상태 불러오는 중…</section>}
           <History model={model} />
         </div>
         <div className="col right">

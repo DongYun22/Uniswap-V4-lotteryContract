@@ -83,6 +83,17 @@ export default function ActionPanel({ model, now }: { model: LotteryModel; now: 
           <div className="muted tiny">회차가 끝나면 누구나 추첨을 요청할 수 있습니다.</div>
         )}
         {model.isOwner && <div className="muted tiny gold">owner 는 회차 종료 전에도 추첨할 수 있습니다.</div>}
+        {model.mockVrf && e.phase === Phase.Drawing && model.actions.mockFulfill && (
+          <div className="mock-box">
+            <div className="tiny">
+              <b>데모 모드</b> · 훅이 Chainlink 대신 mock 코디네이터를 보고 있습니다. 실제 VRF 대신 브라우저가 만든 난수를 직접
+              주입해 콜백을 실행합니다.
+            </div>
+            <button className="btn gold" disabled={disabled || !model.account} onClick={guard(model.actions.mockFulfill!)}>
+              🎲 난수 주입하고 승자 뽑기
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="field">

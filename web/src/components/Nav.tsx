@@ -18,7 +18,7 @@ export default function Nav({ model }: { model: LotteryModel }) {
         </nav>
       </div>
       <div className="nav-right">
-        <span className={`badge mode-${model.mode}`}>{model.mode === 'live' ? 'Ethereum Sepolia' : 'DEMO · 시뮬레이션'}</span>
+        <span className={`badge mode-${model.mode}`}>{model.mode === 'live' ? (model.mockVrf ? 'Sepolia · mock VRF' : 'Ethereum Sepolia') : 'DEMO · 시뮬레이션'}</span>
         {model.account ? (
           <button className="btn ghost" onClick={model.disconnect}>
             {short(model.account)}

@@ -95,10 +95,25 @@ cd web && npm run sync-env && npm run dev
 
 Uniswap 주소는 hookmate `AddressConstants` 가 chainid 로 고르므로 `--rpc-url` 만 바꾸면 Base Sepolia, Arbitrum Sepolia 에도 그대로 씁니다.
 
+### 데모용 mock VRF 전환 (LINK 가 부족할 때)
+
+Sepolia 노드는 구독 잔액이 "최악 비용"(750 gwei 레인 기준, 콜백 120k 면 약 45~60 LINK) 이상일 때만 이행한다.
+faucet 25 LINK 로는 부족하므로, 데모 때는 훅의 코디네이터를 mock 으로 바꿔 owner 가 난수를 직접 주입한다.
+
+```bash
+forge create src/mocks/MockVRFCoordinatorV2Plus.sol:MockVRFCoordinatorV2Plus --rpc-url sepolia --private-key $PRIVATE_KEY --broadcast
+cast send <hook> "setCoordinator(address)" <mock> --rpc-url sepolia --private-key $PRIVATE_KEY
+# 이후 프론트의 "난수 주입하고 승자 뽑기" 버튼 (owner) 또는:
+cast send <mock> "fulfill(uint256,uint256)" <requestId> <randomWord> --rpc-url sepolia --private-key $PRIVATE_KEY
+```
+
+프론트는 훅의 `s_vrfCoordinator` 가 `.env` 의 `VITE_VRF_COORDINATOR`(진짜 Chainlink) 와 다르면 자동으로 mock 모드 UI 를 띄운다.
+LINK 가 모이면 `setCoordinator(<chainlink>)` 로 되돌리면 되고 재배포는 필요 없다. **mock 의 fulfill 은 누구나 호출할 수 있으므로 데모 전용이다.**
+
 ### 사전 준비 (VRF 함정 두 가지)
 
 1. **keyHash 는 온체인에서 확인**: `cast call <coordinator> "s_provingKeyHashes(uint256)(bytes32)" 0`. 코디네이터는 요청 시 keyHash 를 검증하지 않아서, 틀린 값이면 요청은 성공하지만 노드가 영원히 이행하지 않는다 (vrf.chain.link 에 "Failed: Invalid key").
-2. **Sepolia 에서는 LINK 로 충전**: Sepolia keyHash 는 750 gwei 가스 레인이라 노드가 "최악 비용"을 750 gwei 기준으로 잡는다. ETH 결제는 잔액이 0.3 ETH 이상이어야 이행되고, 그 이하면 "Pending (low balance)" 로 멈춘다. [faucets.chain.link/sepolia](https://faucets.chain.link/sepolia) 에서 25 LINK 를 무료로 받아 구독에 넣고 `nativePayment=false` 로 두는 게 정답. 배포 스크립트 기본값도 LINK 결제다.
+2. **잔액은 "최악 비용" 이상이어야 한다**: Sepolia keyHash 는 750 gwei 가스 레인이라 노드가 최악 비용을 750 gwei 기준으로 잡는다 (LINK/ETH 피드 1 ETH≈204 LINK). 콜백 120k 기준 ETH 결제는 약 0.25 ETH, LINK 결제는 약 45~60 LINK 가 있어야 이행되고, 그 이하면 "Pending (low balance)" 로 멈춘다. faucet 은 지갑당 하루 25 LINK 이므로 팀원 2~3명이 각자 받아 같은 구독에 넣으면 된다. 배포 스크립트 기본값은 LINK 결제(`nativePayment=false`).
 3. 콜백 실측 가스는 약 3.5만. `callbackGasLimit` 은 12만이면 충분하다.
 
 ### 사전 준비

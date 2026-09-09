@@ -201,6 +201,7 @@ export function useDemoLottery(): LotteryModel {
     isOwner: connected,
     busy,
     error: null,
+    mockVrf: false,
     connect: () => setConnected(true),
     disconnect: () => setConnected(false),
     actions: { buyTicket, requestDraw, retryDraw: requestDraw, skipEpoch, claim, deposit },

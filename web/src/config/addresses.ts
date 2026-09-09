@@ -30,4 +30,6 @@ export const poolKey = () => ({
 
 export const EXPLORER = 'https://sepolia.etherscan.io'
 export const VRF_SUB_ID = env.VITE_VRF_SUB_ID as string | undefined
+/** 진짜 Chainlink 코디네이터. 훅의 s_vrfCoordinator 가 이 값과 다르면 데모용 mock 으로 간주 */
+export const VRF_COORDINATOR = asAddress(env.VITE_VRF_COORDINATOR)
 export const VRF_SUB_URL = VRF_SUB_ID ? `https://vrf.chain.link/sepolia/${VRF_SUB_ID}` : 'https://vrf.chain.link'
