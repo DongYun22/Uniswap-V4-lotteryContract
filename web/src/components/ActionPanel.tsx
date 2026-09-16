@@ -35,6 +35,27 @@ export default function ActionPanel({ model, now }: { model: LotteryModel; now: 
 
   const guard = (fn: () => Promise<void>) => () => fn().catch(() => {})
 
+  /** 주소·심볼·소수점을 컨트랙트 값 그대로 지갑에 등록한다 (수동 입력 실수 방지) */
+  async function addToWallet() {
+    const eth = (window as any).ethereum
+    if (!eth || !model.token.address) return
+    try {
+      await eth.request({
+        method: 'wallet_watchAsset',
+        params: {
+          type: 'ERC20',
+          options: {
+            address: model.token.address,
+            symbol: model.token.symbol,
+            decimals: model.token.decimals,
+          },
+        },
+      })
+    } catch {
+      /* 사용자가 취소한 경우 무시 */
+    }
+  }
+
   return (
     <section className="panel actions">
       <div className="eyebrow">참여</div>
@@ -61,7 +82,14 @@ export default function ActionPanel({ model, now }: { model: LotteryModel; now: 
           {fmtEth(s.ticketPrice)} ETH 당 1장 · ETH 를 넣는 방향만 참가 · hookData 에 내 주소가 실려 감
         </div>
         <div className="row between balance">
-          <span className="muted tiny">받은 토큰 잔액</span>
+          <span className="muted tiny">
+            받은 토큰 잔액
+            {model.token.address && (
+              <button className="linkbtn" onClick={addToWallet} title="지갑에 토큰 추가">
+                지갑에 추가
+              </button>
+            )}
+          </span>
           {model.token.address ? (
             <a className="mono" href={tokenUrl(model.token.address, model.account)} target="_blank" rel="noreferrer">
               {fmtEth(model.token.balance, 5)} {model.token.symbol} ↗

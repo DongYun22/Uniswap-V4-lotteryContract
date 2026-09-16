@@ -209,7 +209,7 @@ export function useDemoLottery(): LotteryModel {
     busy,
     error: null,
     txs,
-    token: { symbol: 'LTT', balance: tokenBalance },
+    token: { symbol: 'LTT', decimals: 18, balance: tokenBalance },
     mockVrf: false,
     connect: () => setConnected(true),
     disconnect: () => setConnected(false),

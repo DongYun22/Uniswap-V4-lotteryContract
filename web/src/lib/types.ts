@@ -89,7 +89,7 @@ export interface LotteryModel {
   /** 이 세션에서 보낸 트랜잭션 (최신 순) */
   txs: TxRecord[]
   /** 스왑으로 받는 토큰 */
-  token: { address?: Address; symbol: string; balance: bigint }
+  token: { address?: Address; symbol: string; decimals: number; balance: bigint }
   /** 훅이 진짜 Chainlink 가 아닌 mock 코디네이터를 보고 있음 */
   mockVrf: boolean
   connect: () => void

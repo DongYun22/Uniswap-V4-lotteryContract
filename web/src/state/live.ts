@@ -147,6 +147,13 @@ export function useLiveLottery(): LotteryModel {
     chainId: CHAIN.id,
     query: { enabled: Boolean(TOKEN_ADDRESS), staleTime: Infinity },
   })
+  const decimalsQ = useReadContract({
+    abi: erc20Abi,
+    address: TOKEN_ADDRESS,
+    functionName: 'decimals',
+    chainId: CHAIN.id,
+    query: { enabled: Boolean(TOKEN_ADDRESS), staleTime: Infinity },
+  })
 
   const myQ = useReadContract({
     abi,
@@ -329,6 +336,7 @@ export function useLiveLottery(): LotteryModel {
     token: {
       address: TOKEN_ADDRESS,
       symbol: (symbolQ.data as string) ?? 'LTT',
+      decimals: (decimalsQ.data as number) ?? 18,
       balance: (tokenQ.data as bigint) ?? 0n,
     },
     mockVrf,
