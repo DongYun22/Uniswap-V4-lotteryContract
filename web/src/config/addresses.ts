@@ -29,6 +29,12 @@ export const poolKey = () => ({
 })
 
 export const EXPLORER = 'https://sepolia.etherscan.io'
+export const POOL_ID = env.VITE_POOL_ID as string | undefined
+
+export const txUrl = (hash: string) => `${EXPLORER}/tx/${hash}`
+export const addrUrl = (addr: string) => `${EXPLORER}/address/${addr}`
+export const tokenUrl = (token: string, holder?: string) =>
+  holder ? `${EXPLORER}/token/${token}?a=${holder}` : `${EXPLORER}/token/${token}`
 export const VRF_SUB_ID = env.VITE_VRF_SUB_ID as string | undefined
 /** 진짜 Chainlink 코디네이터. 훅의 s_vrfCoordinator 가 이 값과 다르면 데모용 mock 으로 간주 */
 export const VRF_COORDINATOR = asAddress(env.VITE_VRF_COORDINATOR)

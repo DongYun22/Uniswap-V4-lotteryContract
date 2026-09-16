@@ -3,6 +3,7 @@ import LotteryScene from '../three/LotteryScene'
 import EpochPanel from '../components/EpochPanel'
 import ActionPanel from '../components/ActionPanel'
 import History from '../components/History'
+import TxPanel from '../components/TxPanel'
 import { Phase, type LotteryModel } from '../lib/types'
 import { fmtEth, nowSec, short } from '../lib/format'
 
@@ -49,6 +50,7 @@ export default function Live({ model }: { model: LotteryModel }) {
         <div className="col left">
           {s ? <EpochPanel state={s} myTickets={model.myTickets} now={now} mockVrf={model.mockVrf} /> : <section className="panel">상태 불러오는 중…</section>}
           <History model={model} />
+          <TxPanel model={model} now={now} />
         </div>
         <div className="col right">
           <ActionPanel model={model} now={now} />

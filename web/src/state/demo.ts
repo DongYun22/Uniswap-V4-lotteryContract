@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseEther, type Address } from 'viem'
-import { Phase, type LotteryModel, type LotteryState, type TicketRecord, type WinnerRecord } from '../lib/types'
+import { Phase, type LotteryModel, type LotteryState, type TicketRecord, type TxRecord, type WinnerRecord } from '../lib/types'
 import { nowSec } from '../lib/format'
 
 const DEMO_ME: Address = '0xd311000000000000000000000000000000000a1e' as Address
@@ -69,6 +69,8 @@ export function useDemoLottery(): LotteryModel {
   const [demo, setDemo] = useState<Demo>(() => openEpoch(1, parseEther('0.5'), 0n))
   const [connected, setConnected] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [txs, setTxs] = useState<TxRecord[]>([])
+  const [tokenBalance, setTokenBalance] = useState(0n)
   const timer = useRef<number | null>(null)
 
   /** 컨트랙트와 같은 규칙: count = amount / ticketPrice, fee = amount * feeBps / 10000 → pot */
@@ -175,7 +177,12 @@ export function useDemoLottery(): LotteryModel {
       if (!connected) throw new Error('지갑을 먼저 연결하세요 (데모)')
       setBusy('스왑 전송 중…')
       await new Promise((r) => setTimeout(r, 900))
-      swap(DEMO_ME, parseEther(amountEth || '0'))
+      const wei = parseEther(amountEth || '0')
+      swap(DEMO_ME, wei)
+      // 데모에서는 1:1 가격 가정, 수수료 5% 제외분만 교환
+      const got = (wei * 9500n) / 10000n
+      setTokenBalance((b) => b + got)
+      setTxs((t) => [{ label: `스왑 ${amountEth} ETH`, at: nowSec(), status: 'success' as const, detail: `+${(Number(got) / 1e18).toFixed(5)} LTT` }, ...t].slice(0, 20))
       setBusy(null)
     },
     [connected, swap],
@@ -201,6 +208,8 @@ export function useDemoLottery(): LotteryModel {
     isOwner: connected,
     busy,
     error: null,
+    txs,
+    token: { symbol: 'LTT', decimals: 18, balance: tokenBalance },
     mockVrf: false,
     connect: () => setConnected(true),
     disconnect: () => setConnected(false),
