@@ -17,6 +17,7 @@ const env = [
   `VITE_DEPLOY_BLOCK=${d.deployBlock}`,
   `VITE_VRF_SUB_ID=${d.subscriptionId}`,
   `VITE_VRF_COORDINATOR=${d.vrfCoordinator}`,
+  `VITE_POOL_ID=${d.poolId}`,
   `VITE_RPC_URL=${process.env.VITE_RPC_URL ?? 'https://ethereum-sepolia-rpc.publicnode.com'}`,
   '',
 ].join('\n')

@@ -10,14 +10,14 @@ import {
   useReadContract,
   useWriteContract,
 } from 'wagmi'
-import { encodeAbiParameters, parseAbiItem, parseEther, type Address } from 'viem'
+import { decodeEventLog, encodeAbiParameters, erc20Abi, formatUnits, parseAbiItem, parseEther, type Address } from 'viem'
 import { sendTransaction } from 'wagmi/actions'
 import lotteryAbi from '../config/abi/LotteryHook.json'
 import { swapRouterAbi } from '../config/abi/swapRouter'
 import { mockVrfAbi } from '../config/abi/mockVrf'
-import { DEPLOY_BLOCK, HOOK_ADDRESS, SWAP_ROUTER, VRF_COORDINATOR, poolKey } from '../config/addresses'
+import { DEPLOY_BLOCK, HOOK_ADDRESS, SWAP_ROUTER, TOKEN_ADDRESS, VRF_COORDINATOR, poolKey } from '../config/addresses'
 import { CHAIN, wagmiConfig } from '../config/wagmi'
-import { Phase, type LotteryModel, type LotteryState, type TicketRecord, type WinnerRecord } from '../lib/types'
+import { Phase, type LotteryModel, type LotteryState, type TicketRecord, type TxRecord, type WinnerRecord } from '../lib/types'
 import { nowSec } from '../lib/format'
 
 const abi = lotteryAbi as any
@@ -84,6 +84,29 @@ export function useLiveLottery(): LotteryModel {
   const client = usePublicClient({ chainId: CHAIN.id })
   const { writeContractAsync } = useWriteContract()
 
+  const TX_KEY = `lottery.txs.${HOOK}`
+  const [txs, setTxs] = useState<TxRecord[]>(() => {
+    try {
+      const raw = localStorage.getItem(TX_KEY)
+      return raw ? (JSON.parse(raw) as TxRecord[]) : []
+    } catch {
+      return []
+    }
+  })
+  const pushTx = useCallback(
+    (rec: TxRecord) =>
+      setTxs((prev) => {
+        const next = [rec, ...prev.filter((t) => t.hash !== rec.hash || !rec.hash)].slice(0, 20)
+        try {
+          localStorage.setItem(TX_KEY, JSON.stringify(next))
+        } catch {
+          /* 사생활 모드 등에서 저장 실패는 무시 */
+        }
+        return next
+      }),
+    [TX_KEY],
+  )
+
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [lastTx, setLastTx] = useState<string | undefined>()
@@ -108,6 +131,22 @@ export function useLiveLottery(): LotteryModel {
   })
   const coordinator = coordQ.data as Address | undefined
   const mockVrf = Boolean(coordinator && VRF_COORDINATOR && coordinator.toLowerCase() !== VRF_COORDINATOR.toLowerCase())
+
+  const tokenQ = useReadContract({
+    abi: erc20Abi,
+    address: TOKEN_ADDRESS,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: CHAIN.id,
+    query: { enabled: Boolean(TOKEN_ADDRESS && address), refetchInterval: 8000 },
+  })
+  const symbolQ = useReadContract({
+    abi: erc20Abi,
+    address: TOKEN_ADDRESS,
+    functionName: 'symbol',
+    chainId: CHAIN.id,
+    query: { enabled: Boolean(TOKEN_ADDRESS), staleTime: Infinity },
+  })
 
   const myQ = useReadContract({
     abi,
@@ -136,6 +175,8 @@ export function useLiveLottery(): LotteryModel {
             prize: l.args.prize as bigint,
             randomWord: l.args.randomWord as bigint,
             claimed: claimed.has(Number(l.args.epochId)),
+            txHash: l.transactionHash ?? undefined,
+            claimTxHash: c.find((x) => Number(x.args.epochId) === Number(l.args.epochId))?.transactionHash ?? undefined,
           }))
           .sort((a, b) => b.epochId - a.epochId),
       )
@@ -150,6 +191,7 @@ export function useLiveLottery(): LotteryModel {
             count: Number(l.args.count),
             fee: l.args.fee as bigint,
             at: 0,
+            txHash: l.transactionHash ?? undefined,
           })),
       )
     } catch (e) {
@@ -163,16 +205,46 @@ export function useLiveLottery(): LotteryModel {
     return () => window.clearInterval(id)
   }, [loadLogs])
 
+  /** 영수증에서 내가 받은 토큰 수량을 뽑아 tx 기록에 붙인다 */
+  const receivedToken = useCallback(
+    (logs: readonly { address: string; topics: readonly string[]; data: string }[]) => {
+      if (!TOKEN_ADDRESS || !address) return undefined
+      for (const l of logs) {
+        if (l.address.toLowerCase() !== TOKEN_ADDRESS.toLowerCase()) continue
+        try {
+          const ev = decodeEventLog({ abi: erc20Abi, topics: l.topics as any, data: l.data as any })
+          if (ev.eventName !== 'Transfer') continue
+          const { to, value } = ev.args as { to: Address; value: bigint }
+          if (to.toLowerCase() !== address.toLowerCase()) continue
+          return `+${Number(formatUnits(value, 18)).toLocaleString('en-US', { maximumFractionDigits: 5 })} ${symbolQ.data ?? 'LTT'}`
+        } catch {
+          /* 다른 이벤트는 무시 */
+        }
+      }
+      return undefined
+    },
+    [address, symbolQ.data],
+  )
+
   const run = useCallback(
     async (label: string, fn: () => Promise<`0x${string}`>) => {
       setError(null)
       setBusy(label)
+      const at = nowSec()
       try {
         const hash = await fn()
         setLastTx(hash)
+        pushTx({ hash, label, at, status: 'pending' })
         setBusy('컨펌 대기 중…')
-        await client?.waitForTransactionReceipt({ hash })
-        await Promise.all([stateQ.refetch(), myQ.refetch(), loadLogs()])
+        const receipt = await client?.waitForTransactionReceipt({ hash })
+        pushTx({
+          hash,
+          label,
+          at,
+          status: receipt?.status === 'reverted' ? 'failed' : 'success',
+          detail: receipt ? receivedToken(receipt.logs as any) : undefined,
+        })
+        await Promise.all([stateQ.refetch(), myQ.refetch(), tokenQ.refetch(), loadLogs()])
       } catch (e: any) {
         setError(e?.shortMessage ?? e?.message ?? String(e))
         throw e
@@ -180,7 +252,7 @@ export function useLiveLottery(): LotteryModel {
         setBusy(null)
       }
     },
-    [client, stateQ, myQ, loadLogs],
+    [client, stateQ, myQ, tokenQ, loadLogs, pushTx, receivedToken],
   )
 
   const actions = {
@@ -253,6 +325,12 @@ export function useLiveLottery(): LotteryModel {
     busy,
     error: error ?? (stateQ.error ? `상태 조회 실패: ${stateQ.error.message}` : null),
     lastTx,
+    txs,
+    token: {
+      address: TOKEN_ADDRESS,
+      symbol: (symbolQ.data as string) ?? 'LTT',
+      balance: (tokenQ.data as bigint) ?? 0n,
+    },
     mockVrf,
     connect: () => connect({ connector: connectors[0] }),
     disconnect: () => disconnect(),

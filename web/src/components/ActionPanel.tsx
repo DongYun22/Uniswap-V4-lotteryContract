@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { parseEther } from 'viem'
 import { Phase, type LotteryModel } from '../lib/types'
 import { fmtEth } from '../lib/format'
-import { EXPLORER } from '../config/addresses'
+import { tokenUrl, txUrl } from '../config/addresses'
 
 export default function ActionPanel({ model, now }: { model: LotteryModel; now: number }) {
   const [amount, setAmount] = useState('0.001')
@@ -58,7 +58,19 @@ export default function ActionPanel({ model, now }: { model: LotteryModel; now: 
           </span>
         </div>
         <div className="muted tiny">
-          {fmtEth(s.ticketPrice)} ETH 당 1장 · ETH → 토큰 방향만 참가 · hookData 에 내 주소가 실려 감
+          {fmtEth(s.ticketPrice)} ETH 당 1장 · ETH 를 넣는 방향만 참가 · hookData 에 내 주소가 실려 감
+        </div>
+        <div className="row between balance">
+          <span className="muted tiny">받은 토큰 잔액</span>
+          {model.token.address ? (
+            <a className="mono" href={tokenUrl(model.token.address, model.account)} target="_blank" rel="noreferrer">
+              {fmtEth(model.token.balance, 5)} {model.token.symbol} ↗
+            </a>
+          ) : (
+            <span className="mono">
+              {fmtEth(model.token.balance, 5)} {model.token.symbol}
+            </span>
+          )}
         </div>
       </div>
 
@@ -129,8 +141,8 @@ export default function ActionPanel({ model, now }: { model: LotteryModel; now: 
       )}
       {model.error && <div className="status error">{model.error}</div>}
       {model.lastTx && (
-        <a className="muted tiny" href={`${EXPLORER}/tx/${model.lastTx}`} target="_blank" rel="noreferrer">
-          마지막 tx 보기 ↗
+        <a className="muted tiny" href={txUrl(model.lastTx)} target="_blank" rel="noreferrer">
+          방금 보낸 트랜잭션 보기 ↗
         </a>
       )}
     </section>

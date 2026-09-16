@@ -37,6 +37,10 @@ export interface WinnerRecord {
   prize: bigint
   claimed: boolean
   randomWord?: bigint
+  /** WinnerSelected 이벤트가 담긴 트랜잭션 */
+  txHash?: string
+  /** PrizeClaimed 이벤트가 담긴 트랜잭션 */
+  claimTxHash?: string
 }
 
 export interface TicketRecord {
@@ -46,6 +50,18 @@ export interface TicketRecord {
   count: number
   fee: bigint
   at: number
+  /** 이 티켓을 발급한 스왑 트랜잭션 */
+  txHash?: string
+}
+
+/** 이 브라우저에서 보낸 트랜잭션 기록 */
+export interface TxRecord {
+  hash?: string
+  label: string
+  at: number
+  status: 'pending' | 'success' | 'failed'
+  /** 스왑으로 받은 토큰 등 부가 정보 */
+  detail?: string
 }
 
 export interface LotteryActions {
@@ -70,6 +86,10 @@ export interface LotteryModel {
   busy: string | null
   error: string | null
   lastTx?: string
+  /** 이 세션에서 보낸 트랜잭션 (최신 순) */
+  txs: TxRecord[]
+  /** 스왑으로 받는 토큰 */
+  token: { address?: Address; symbol: string; balance: bigint }
   /** 훅이 진짜 Chainlink 가 아닌 mock 코디네이터를 보고 있음 */
   mockVrf: boolean
   connect: () => void
